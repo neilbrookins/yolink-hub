@@ -24,7 +24,8 @@ mod('homeassistant.core', HomeAssistant=object, callback=lambda f:f)
 class DR:
     def async_get_device(s, identifiers): return types.SimpleNamespace(id='d', sw_version='1310')
     def async_update_device(s, i, sw_version): print('   device sw_version ->', sw_version)
-mod('homeassistant.helpers.device_registry', async_get=lambda h: DR(), DeviceInfo=dict)
+mod('homeassistant.helpers.device_registry', async_get=lambda h: DR(), DeviceInfo=dict,
+    async_entries_for_config_entry=lambda reg, entry_id: [types.SimpleNamespace(id='d', sw_version='1310')])
 class DUC:
     def __class_getitem__(c, i): return c
     def __init__(s, hass, logger, config_entry, name, update_interval): s.hass=hass; s.config_entry=config_entry; s.data=None

@@ -3,6 +3,13 @@
 Each version's notes. A release on GitHub is made from its section here
 by running the Release workflow (Actions tab): see .github/workflows/release.yml.
 
+## 0.1.2
+
+### Fixed
+- Keeping the device page's firmware version current no longer uses a
+  device-registry call Home Assistant has deprecated (it would stop working
+  in Home Assistant 2027.8).
+
 ## 0.1.1
 
 ### Added

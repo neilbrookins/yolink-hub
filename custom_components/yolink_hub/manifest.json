@@ -10,5 +10,5 @@
   "issue_tracker": "https://github.com/neilbrookins/yolink-hub/issues",
   "loggers": ["custom_components.yolink_hub"],
   "requirements": ["icmplib>=3.0.3"],
-  "version": "0.1.1"
+  "version": "0.1.2"
 }

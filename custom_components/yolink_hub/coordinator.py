@@ -140,6 +140,8 @@ class YoLinkHubCoordinator(DataUpdateCoordinator[HubData]):
         if not data.version:
             return
         registry = dr.async_get(self.hass)
-        device = registry.async_get_device(identifiers={(DOMAIN, self.hub_id)})
-        if device and device.sw_version != data.version:
-            registry.async_update_device(device.id, sw_version=data.version)
+        for device in dr.async_entries_for_config_entry(
+            registry, self.config_entry.entry_id
+        ):
+            if device.sw_version != data.version:
+                registry.async_update_device(device.id, sw_version=data.version)
