@@ -1,0 +1,8 @@
+{
+  "code": "000201",
+  "time": 1794501999272,
+  "msgid": 1794501999272,
+  "method": "Hub.getState",
+  "desc": "Cannot connect to the device",
+  "data": {}
+}

@@ -1,0 +1,35 @@
+{
+  "code": "000000",
+  "time": 1794500335303,
+  "msgid": 1794500335303,
+  "method": "Hub.getState",
+  "desc": "Success",
+  "data": {
+    "online": true,
+    "version": "1316",
+    "wifi": {
+      "enable": false,
+      "ssid": ""
+    },
+    "eth": {
+      "enable": true,
+      "ip": "192.168.0.250",
+      "gateway": "192.168.0.1",
+      "mask": "255.255.255.0"
+    },
+    "other": {
+      "supportNRP": true,
+      "power": {
+        "dc": true,
+        "battery": true,
+        "batteryState": 3
+      }
+    },
+    "cellular": {
+      "enable": false,
+      "module": {
+        "enable": false
+      }
+    }
+  }
+}

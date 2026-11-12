@@ -1,0 +1,101 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "YoLink User Access Credentials",
+        "description": "In the YoLink app go to Settings > Account > Advanced Settings > User Access Credentials, tap + if none exist, and copy the UAID and Secret Key.",
+        "data": {
+          "uaid": "UAID",
+          "secret_key": "Secret Key"
+        }
+      },
+      "hub": {
+        "title": "Choose the hub",
+        "data": { "hub_id": "Hub" }
+      },
+      "local": {
+        "title": "{hub}: local check and polling",
+        "description": "Enter the hub's LAN IP address so Home Assistant can ping it directly. This tells a local hub outage apart from an internet or YoLink cloud outage. Leave it empty to skip the local check.",
+        "data": {
+          "local_host": "Hub IP address on your network",
+          "scan_interval": "Check every"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "YoLink rejected the UAID or Secret Key.",
+      "cannot_connect": "Could not reach the YoLink cloud. Try again.",
+      "no_hubs": "No hub was found on this YoLink account."
+    },
+    "abort": {
+      "already_configured": "This hub is already set up."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "YoLink Hub options",
+        "data": {
+          "local_host": "Hub IP address on your network (empty = no local check)",
+          "scan_interval": "Check every"
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "online": { "name": "Online" },
+      "local_network": { "name": "Local network" },
+      "yolink_cloud": { "name": "YoLink cloud" },
+      "needs_review": { "name": "Needs review" }
+    },
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": {
+          "online": "Online",
+          "online_no_ping": "Online, not answering local ping",
+          "offline": "Offline",
+          "offline_cloud_lan_ok": "Offline in cloud, reachable on LAN",
+          "cloud_down_lan_ok": "YoLink cloud unreachable, hub reachable on LAN",
+          "cloud_down_lan_down": "YoLink cloud and hub both unreachable",
+          "cloud_down": "YoLink cloud unreachable",
+          "unexpected_response": "Unexpected YoLink response"
+        }
+      },
+      "dc": {
+        "name": "DC",
+        "state": {
+          "connected": "Connected",
+          "disconnected": "Disconnected"
+        }
+      },
+      "battery": {
+        "name": "Battery",
+        "state": {
+          "supply": "Supply",
+          "charging": "Charging",
+          "standby": "Standby",
+          "code_0": "Code 0 (app wording not yet confirmed)",
+          "code_4": "Code 4 (app wording not yet confirmed)",
+          "unrecognized": "Unrecognized code"
+        }
+      },
+      "firmware": { "name": "Firmware" },
+      "ethernet": {
+        "name": "Ethernet",
+        "state": {
+          "connected": "Connected",
+          "not_connected": "Not Connected"
+        }
+      },
+      "wifi": {
+        "name": "Wi-Fi",
+        "state": {
+          "connected": "Connected",
+          "not_connected": "Not Connected"
+        }
+      }
+    }
+  }
+}
