@@ -56,7 +56,7 @@ Anything new or unexpected turns on **Needs review** and lists the reason, so it
 2. Enter them in Home Assistant. If the account has more than one hub, pick one.
 3. Enter the hub's LAN IP address for the local check (suggested from what the hub reports; a DHCP reservation for the hub is recommended), how often to ping it (5–60 seconds, default 10), and how often to check the YoLink cloud (30–300 seconds, default 60).
 
-Both settings can be changed later under the integration's **Configure** button.
+These settings can be changed later under the integration's **Configure** button.
 
 ## Notes
 
