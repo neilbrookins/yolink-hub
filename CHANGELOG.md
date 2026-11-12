@@ -3,6 +3,20 @@
 Each version's notes. A release on GitHub is made from its section here
 by running the Release workflow (Actions tab): see .github/workflows/release.yml.
 
+## 0.1.6
+
+### Changed
+- **Several hubs work better together.** Add the integration once per hub;
+  the same UAID and Secret Key work for every hub on the account. The hub
+  list now leaves out hubs already set up (and says so when all are), hubs
+  on the same account share one access token, and a token replaced by a
+  newer one is renewed and the request retried instead of showing the cloud
+  as unreachable.
+- **Hubs without a battery or "online" field** (SpeakerHub, per YoLink's
+  docs): a successful reply counts as online, and the SpeakerHub's
+  documented speaker options no longer trigger Needs review. Not yet tested
+  on real hardware other than the Pro Hub.
+
 ## 0.1.5
 
 ### Added

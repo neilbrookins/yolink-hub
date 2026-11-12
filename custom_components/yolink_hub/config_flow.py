@@ -116,9 +116,13 @@ class YoLinkHubConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.warning("YoLink cloud error during setup: %s", err)
                 errors["base"] = "cannot_connect"
             else:
-                self._hubs = [d for d in devices if _is_hub(d)]
-                if not self._hubs:
+                hubs = [d for d in devices if _is_hub(d)]
+                configured = {e.unique_id for e in self._async_current_entries()}
+                self._hubs = [h for h in hubs if h.get("deviceId") not in configured]
+                if not hubs:
                     errors["base"] = "no_hubs"
+                elif not self._hubs:
+                    return self.async_abort(reason="all_hubs_configured")
                 else:
                     self._creds = {CONF_UAID: uaid, CONF_SECRET_KEY: secret}
                     self._api = api

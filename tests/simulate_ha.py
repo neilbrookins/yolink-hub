@@ -165,4 +165,30 @@ async def main():
     await e3.async_added_to_hass(); print('   restored, changed  :', (e3.native_value.strftime('%H:%M'), e3.extra_state_attributes))
     assert e3.extra_state_attributes=={'battery_state':'standby','exact_start':False}
     print('BATTERY-SINCE TEST PASSED')
+    print('--- Several hubs on one account ---')
+    class Resp:
+        def __init__(s, status, body): s.status=status; s.body=body
+        async def json(s, content_type=None): return s.body
+        async def __aenter__(s): return s
+        async def __aexit__(s, *a): return False
+    class YoLinkCloud:
+        # Issues numbered tokens; only the newest is accepted (worst case: a new token replaces the old)
+        def __init__(s): s.issued=0; s.calls=[]
+        def post(s, url, data=None, json=None, headers=None, timeout=None):
+            if url.endswith('/token'):
+                s.issued+=1; return Resp(200, {'access_token': f't{s.issued}', 'expires_in': 7200})
+            tok=headers['Authorization'].split()[-1]; s.calls.append((json['targetDevice'], tok))
+            if tok != f't{s.issued}': return Resp(401, {})
+            return Resp(200, {'code':'000000','data':{'online':True}})
+    cloud=YoLinkCloud()
+    shared=apim.YoLinkApi(cloud,'uaid','secret')
+    for hub in ('hubA','hubB','hubA','hubB'):
+        r=await shared.get_state('Hub', hub, 'x'); assert r['code']=='000000'
+    print('   shared client: 4 polls of 2 hubs used', cloud.issued, 'token request(s)'); assert cloud.issued==1
+    # A second client (e.g. the setup form) gets its own token, replacing the first:
+    other=apim.YoLinkApi(cloud,'uaid','secret'); await other.get_state('Hub','hubC','x')
+    r=await shared.get_state('Hub','hubA','x'); assert r['code']=='000000'
+    print('   after another client replaced the token: rejected once, fresh token, success; calls =', cloud.calls[-2:])
+    assert cloud.calls[-2][1]=='t1' and cloud.calls[-1][1]=='t3'
+    print('MULTI-HUB TEST PASSED')
 asyncio.run(main())

@@ -61,6 +61,8 @@ These settings can be changed later under the integration's **Configure** button
 
 ## Notes
 
+- **Several hubs:** add the integration once for each hub. The same UAID and Secret Key work for every hub on the account; hubs already set up aren't offered again. Each hub gets its own device, local address and settings.
+
 - Polls the YoLink cloud API, reusing the access token until it is about to expire, so one check costs one API request.
 - The ping runs on its own, faster timer. When the hub stops answering, the cloud is checked at once; when it starts answering again, 5 seconds later, giving the hub time to reconnect to YoLink. Either way, the cloud is asked again every 5 seconds until it agrees with the ping, for at most a minute.
 - Uses its own User Access Credentials, separate from the official integration's login.

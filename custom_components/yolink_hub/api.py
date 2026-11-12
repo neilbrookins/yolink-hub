@@ -69,27 +69,35 @@ class YoLinkApi:
             return token
 
     async def call(self, method: str, **extra: Any) -> dict[str, Any]:
-        """Send one API request and return the JSON reply (any 'code')."""
-        token = await self._get_token()
-        payload = {"method": method, "time": int(time.time() * 1000), **extra}
-        try:
-            async with self._session.post(
-                API_URL,
-                json=payload,
-                headers={"Authorization": f"Bearer {token}"},
-                timeout=REQUEST_TIMEOUT,
-            ) as resp:
-                if resp.status == 401:
-                    self.invalidate_token()
-                    raise YoLinkCloudError("Access token rejected (HTTP 401)")
-                if resp.status >= 400:
-                    raise YoLinkCloudError(f"{method} failed (HTTP {resp.status})")
-                body = await resp.json(content_type=None)
-        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as err:
-            raise YoLinkCloudError(f"{method} failed: {err}") from err
-        if not isinstance(body, dict) or "code" not in body:
-            raise YoLinkCloudError(f"{method} returned an unexpected reply")
-        return body
+        """Send one API request and return the JSON reply (any 'code').
+
+        If the access token is rejected (it may have been replaced by a newer
+        one), get a fresh token and try once more.
+        """
+        for attempt in (1, 2):
+            token = await self._get_token()
+            payload = {"method": method, "time": int(time.time() * 1000), **extra}
+            try:
+                async with self._session.post(
+                    API_URL,
+                    json=payload,
+                    headers={"Authorization": f"Bearer {token}"},
+                    timeout=REQUEST_TIMEOUT,
+                ) as resp:
+                    if resp.status == 401:
+                        self.invalidate_token()
+                        if attempt == 1:
+                            continue
+                        raise YoLinkCloudError("Access token rejected (HTTP 401)")
+                    if resp.status >= 400:
+                        raise YoLinkCloudError(f"{method} failed (HTTP {resp.status})")
+                    body = await resp.json(content_type=None)
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as err:
+                raise YoLinkCloudError(f"{method} failed: {err}") from err
+            if not isinstance(body, dict) or "code" not in body:
+                raise YoLinkCloudError(f"{method} returned an unexpected reply")
+            return body
+        raise YoLinkCloudError(f"{method} failed")  # not reached
 
     async def device_list(self) -> list[dict[str, Any]]:
         """Return the account's devices (deviceId, name, token, type, modelName)."""

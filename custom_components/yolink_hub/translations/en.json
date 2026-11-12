@@ -13,7 +13,8 @@
         "title": "Choose the hub",
         "data": {
           "hub_id": "Hub"
-        }
+        },
+        "description": "Hubs already set up aren't listed. Add the integration again for each other hub; the same UAID and Secret Key work for every hub on the account."
       },
       "local": {
         "title": "{hub}: local check and polling",
@@ -31,7 +32,8 @@
       "no_hubs": "No hub was found on this YoLink account."
     },
     "abort": {
-      "already_configured": "This hub is already set up."
+      "already_configured": "This hub is already set up.",
+      "all_hubs_configured": "Every hub on this YoLink account is already set up."
     }
   },
   "options": {

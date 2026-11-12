@@ -59,6 +59,10 @@ KNOWN_PATHS = frozenset(
         "cellular.module.enable",
         "cellular.module.ver",
         "cellular.module.imei",
+        # SpeakerHub (YoLink docs)
+        "options.volume",
+        "options.enableBeep",
+        "options.mute",
     }
 )
 
@@ -173,9 +177,9 @@ def parse(
             if path not in KNOWN_PATHS:
                 reasons.append(f"New field from YoLink API: {path} = {leaf!r}")
 
-        hub.online = _bool(data.get("online"), "online", reasons)
-        if "online" not in data:
-            reasons.append("YoLink API reply has no 'online' field")
+        # YoLink's docs for some hubs don't list "online"; a successful reply
+        # means the cloud reached the hub (an offline hub gives 000201).
+        hub.online = _bool(data.get("online", True), "online", reasons)
 
         version = data.get("version")
         hub.version = str(version) if version is not None else None

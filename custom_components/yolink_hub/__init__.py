@@ -8,16 +8,20 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import YoLinkApi
-from .const import CONF_SECRET_KEY, CONF_UAID
+from .const import CONF_SECRET_KEY, CONF_UAID, DOMAIN
 from .coordinator import YoLinkHubCoordinator
 
 PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    api = YoLinkApi(
-        async_get_clientsession(hass), entry.data[CONF_UAID], entry.data[CONF_SECRET_KEY]
-    )
+    # Hubs on the same YoLink account share one client, so they share one
+    # access token instead of each asking for (and maybe replacing) their own.
+    clients: dict[tuple[str, str], YoLinkApi] = hass.data.setdefault(DOMAIN, {})
+    key = (entry.data[CONF_UAID], entry.data[CONF_SECRET_KEY])
+    if key not in clients:
+        clients[key] = YoLinkApi(async_get_clientsession(hass), *key)
+    api = clients[key]
     coordinator = YoLinkHubCoordinator(hass, entry, api)
     await coordinator.async_start_pinging()
     await coordinator.async_config_entry_first_refresh()

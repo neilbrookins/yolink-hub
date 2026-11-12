@@ -132,6 +132,22 @@ def test_odd_dc_value_flagged():
     assert any("other.power.dc" in r for r in hub.review_reasons)
 
 
+def test_speakerhub_documented_fields_not_flagged():
+    # Shape from YoLink's SpeakerHub.getState docs (no hardware tested):
+    # no power section, plus speaker options.
+    resp = {"code": "000000", "desc": "Success", "data": {
+        "version": "0402",  # docs list no "online" field
+        "wifi": {"enable": True, "ssid": "home", "ip": "192.168.1.20",
+                 "gateway": "192.168.1.1", "mask": "255.255.255.0"},
+        "eth": {"enable": False},
+        "options": {"volume": 8, "enableBeep": True, "mute": False}}}
+    hub = status.parse(resp, True)
+    assert hub.review_reasons == []
+    assert hub.status == status.STATUS_ONLINE
+    assert hub.dc is None and hub.battery_state is None  # no battery: those stay unavailable
+    assert hub.wifi_connected is True and hub.eth_connected is False
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:
