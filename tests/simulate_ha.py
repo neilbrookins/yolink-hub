@@ -20,6 +20,8 @@ mod('homeassistant'); mod('homeassistant.helpers'); mod('homeassistant.component
 class ConfigEntry:
     def __init__(s,data,options): s.data=data; s.options=options; s.entry_id='e1'
     def async_on_unload(s, f): pass
+    def async_create_background_task(s, hass, coro, name):
+        t=asyncio.get_running_loop().create_task(coro); TASKS.append(t); return t
 mod('homeassistant.config_entries', ConfigEntry=ConfigEntry)
 mod('homeassistant.core', HomeAssistant=object, callback=lambda f:f)
 class DR:
@@ -37,7 +39,7 @@ class CE:
     def __init__(s, coordinator): s.coordinator=coordinator
     available=True
 import datetime as _dt
-TIMERS=[]
+TIMERS=[]; TASKS=[]
 mod('homeassistant.helpers.event', async_track_time_interval=lambda hass, cb, interval: TIMERS.append((cb, interval)) or (lambda: None))
 mod('homeassistant.util'); mod('homeassistant.util.dt', utcnow=lambda: _dt.datetime(2026,11,12,19,0,tzinfo=_dt.timezone.utc))
 mod('homeassistant.helpers.update_coordinator', DataUpdateCoordinator=DUC, CoordinatorEntity=CE)
@@ -103,18 +105,30 @@ async def main():
     bad=fx('normal'); bad['data']['other']['power']['batteryState']=4
     await run('Battery code 4', [bad])
     await run('No local address set', [fx('normal')], host='')
-    print('--- Ping fails between cloud checks: cloud is asked at once ---')
+    print('--- Ping changes between cloud checks: cloud asked until it agrees ---')
+    _sleep=asyncio.sleep
+    coordm.asyncio.sleep=lambda t, *a, **k: _sleep(0)   # no real waiting in the test
+    async def change(c, alive):
+        PING['alive']=alive; await cb(None)
+        for t in list(TASKS): await t
+        TASKS.clear()
     TIMERS.clear()
-    c=await run('Before', [fx('normal'), fx('ethernet_unplugged'), fx('normal')])
+    reasons=[]
+    c=await run('Before', [fx('normal'),
+        fx('normal'), fx('ethernet_unplugged'),                       # ping fails: cloud lags once, then agrees
+        fx('ethernet_unplugged'), fx('ethernet_unplugged'), fx('normal')])  # recovers: hub still reconnecting twice
+    _orig=c._async_update_data
+    async def logged():
+        d=await _orig(); reasons.append((d.cloud_check_reason, d.status)); return d
+    c._async_update_data=logged
     cb, interval = TIMERS[-1]
     print('   ping timer every', interval)
-    PING['alive']=False; await cb(None)
-    print(f'After ping failed: status={c.data.status}, cloud check reason={c.data.cloud_check_reason}'); show(c)
-    assert c.data.status=='offline' and c.data.cloud_check_reason=='ping failed'
-    await cb(None)  # still failing: no extra cloud call
-    assert c.api.calls==2, c.api.calls
-    PING['alive']=True; await cb(None)
-    print(f'After ping recovered: status={c.data.status}, reason={c.data.cloud_check_reason}')
-    assert c.data.status=='online' and c.data.cloud_check_reason=='ping recovered' and c.api.calls==3
+    await change(c, False)
+    print('   after ping failed:', reasons); assert reasons==[('ping failed','online_no_ping'),('ping failed, follow-up','offline')]
+    reasons.clear(); await cb(None); assert reasons==[]          # still failing: no extra calls
+    await change(c, True)
+    print('   after ping recovered:', reasons)
+    assert reasons==[('ping recovered','offline_cloud_lan_ok'),('ping recovered, follow-up','offline_cloud_lan_ok'),('ping recovered, follow-up','online')]
+    assert c.api.calls==6
     print('PING-TRIGGER TEST PASSED')
 asyncio.run(main())

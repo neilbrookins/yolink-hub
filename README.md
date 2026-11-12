@@ -61,7 +61,7 @@ These settings can be changed later under the integration's **Configure** button
 ## Notes
 
 - Polls the YoLink cloud API, reusing the access token until it is about to expire, so one check costs one API request.
-- The ping runs on its own, faster timer. When the hub stops or starts answering, the cloud is checked at once instead of waiting for the next scheduled check.
+- The ping runs on its own, faster timer. When the hub stops answering, the cloud is checked at once; when it starts answering again, 5 seconds later, giving the hub time to reconnect to YoLink. Either way, the cloud is asked again every 5 seconds until it agrees with the ping, for at most a minute.
 - Uses its own User Access Credentials, separate from the official integration's login.
 - "Update available" for hub firmware isn't possible yet: the API reports only the installed version.
 

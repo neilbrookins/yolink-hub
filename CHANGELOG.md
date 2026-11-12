@@ -3,6 +3,22 @@
 Each version's notes. A release on GitHub is made from its section here
 by running the Release workflow (Actions tab): see .github/workflows/release.yml.
 
+## 0.1.4
+
+### Changed
+- **After the ping result changes, the cloud is asked until it agrees.**
+  When the ping fails the cloud is checked at once; when it recovers, 5
+  seconds later (the hub needs a moment to reconnect to YoLink). If the
+  cloud still disagrees with the ping, it is asked again every 5 seconds,
+  for at most a minute, before falling back to the scheduled checks. In
+  testing, the cloud reported the hub back online about a minute late,
+  because the only check after the ping recovered came before the hub had
+  reconnected.
+- **Faster ping:** 1-second reply timeout (was 2) and 0.2 seconds between
+  its three packets, so an unplugged hub is noticed within about 1.5
+  seconds of a ping. The hub still counts as reachable if any of the
+  three is answered.
+
 ## 0.1.3
 
 ### Changed

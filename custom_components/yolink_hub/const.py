@@ -24,7 +24,13 @@ DEFAULT_PING_INTERVAL = 10  # seconds
 MIN_PING_INTERVAL = 5
 MAX_PING_INTERVAL = 60
 
-PING_COUNT = 3
-PING_TIMEOUT = 2  # seconds per reply
+PING_COUNT = 3  # the hub counts as reachable if any of these is answered
+PING_INTERVAL_WITHIN = 0.2  # seconds between the packets of one ping
+PING_TIMEOUT = 1  # seconds to wait for each reply
+
+# After the ping result changes, the cloud is checked until it agrees:
+RECOVERY_FIRST_CHECK = 5  # seconds after the ping recovers (hub reconnecting)
+FOLLOW_UP_EVERY = 5  # seconds between further checks while they disagree
+FOLLOW_UP_WINDOW = 60  # give up after this many seconds; scheduled checks go on
 
 MANUFACTURER = "YoSmart"

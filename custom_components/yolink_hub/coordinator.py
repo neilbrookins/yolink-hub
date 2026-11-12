@@ -1,12 +1,15 @@
 """Pings the hub on the LAN often, and checks the YoLink cloud less often.
 
 When the ping result changes (the hub stops or starts answering), the cloud is
-checked right away, so the status settles within seconds without polling the
-cloud more often.
+checked again: at once when the ping fails, a few seconds later when it
+recovers (the hub needs a moment to reconnect to the cloud), then every few
+seconds until the cloud agrees with the ping, for at most a minute. So the
+status settles within seconds without polling the cloud more often.
 """
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
 import logging
 
@@ -30,7 +33,11 @@ from .const import (
     DEFAULT_PING_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    FOLLOW_UP_EVERY,
+    FOLLOW_UP_WINDOW,
     PING_COUNT,
+    PING_INTERVAL_WITHIN,
+    RECOVERY_FIRST_CHECK,
     PING_TIMEOUT,
 )
 from .status import KNOWN_CODES, HubData, parse
@@ -73,6 +80,7 @@ class YoLinkHubCoordinator(DataUpdateCoordinator[HubData]):
         self._checked_at: datetime | None = None
         self._check_reason = "startup"
         self._next_reason = "startup"
+        self._follow_up_task: asyncio.Task | None = None
 
     async def async_start_pinging(self) -> None:
         """First ping now, then on the ping interval until the entry unloads."""
@@ -103,8 +111,27 @@ class YoLinkHubCoordinator(DataUpdateCoordinator[HubData]):
         )
         if self.data is not None:
             self.async_set_updated_data(self._build())  # show the ping change at once
-        self._next_reason = "ping recovered" if local else "ping failed"
-        await self.async_refresh()
+        if self._follow_up_task and not self._follow_up_task.done():
+            self._follow_up_task.cancel()
+        self._follow_up_task = self.config_entry.async_create_background_task(
+            self.hass, self._follow_up(local), "yolink_hub cloud follow-up"
+        )
+
+    async def _follow_up(self, local: bool) -> None:
+        """Ask the cloud until it agrees with the ping, for at most a minute."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + FOLLOW_UP_WINDOW
+        reason = "ping recovered" if local else "ping failed"
+        if local:
+            await asyncio.sleep(RECOVERY_FIRST_CHECK)  # let the hub reconnect first
+        while True:
+            self._next_reason = reason
+            await self.async_refresh()
+            online = self.data.online if self.data else None
+            if online is None or online == local or loop.time() >= deadline:
+                return  # agrees, cloud unreachable, or out of time
+            await asyncio.sleep(FOLLOW_UP_EVERY)
+            reason = ("ping recovered" if local else "ping failed") + ", follow-up"
 
     async def _async_update_data(self) -> HubData:
         self._check_reason, self._next_reason = self._next_reason, "scheduled"
@@ -173,7 +200,7 @@ class YoLinkHubCoordinator(DataUpdateCoordinator[HubData]):
                 host = await async_ping(
                     self.local_host,
                     count=PING_COUNT,
-                    interval=0.5,
+                    interval=PING_INTERVAL_WITHIN,
                     timeout=PING_TIMEOUT,
                     privileged=privileged,
                 )
