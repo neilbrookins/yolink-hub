@@ -112,6 +112,9 @@
       },
       "last_cloud_check": {
         "name": "Last cloud check"
+      },
+      "battery_since": {
+        "name": "Battery state since"
       }
     }
   }

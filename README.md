@@ -16,6 +16,7 @@ Everything appears on one **hub device** page. State names match the YoLink app'
 | YoLink cloud | Connected / Disconnected | Whether Home Assistant can reach the YoLink API |
 | DC | Connected / Disconnected | `other.power.dc` |
 | Battery | Supply / Charging / Standby | `other.power.batteryState` 1 / 2 / 3 |
+| Battery state since | When the current battery state began, shown as "12 minutes ago" (the API has no charge percentage) | Tracked by the integration |
 | Last cloud check *(diagnostic)* | When the YoLink cloud was last asked, with the reason as an attribute | |
 | Firmware *(diagnostic)* | e.g. 1316 | `version` |
 | Ethernet, Wi-Fi *(diagnostic)* | Connected / Not Connected, with IP, gateway and mask as attributes | `eth`, `wifi` |

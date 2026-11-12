@@ -3,6 +3,19 @@
 Each version's notes. A release on GitHub is made from its section here
 by running the Release workflow (Actions tab): see .github/workflows/release.yml.
 
+## 0.1.5
+
+### Added
+- **Battery state since**: when the battery's current state (Supply,
+  Charging, Standby, ...) began, which Home Assistant shows as "12 minutes
+  ago". The API gives no charge percentage, so this honest duration stands
+  in for one: on Supply, it is how long the hub has been on battery. It
+  restarts only when the battery state changes, not when the hub drops
+  offline and returns in the same state, nor across Home Assistant
+  restarts. Its attribute exact_start is false when the change wasn't seen
+  as it happened (first setup, or a change while Home Assistant was stopped
+  or the hub couldn't be read); the time is then when it was first seen.
+
 ## 0.1.4
 
 ### Changed

@@ -1,9 +1,13 @@
-"""Sensors: status, DC, battery, firmware, Ethernet, Wi-Fi (words match the YoLink app)."""
+"""Sensors: status, DC, battery (and since when), firmware, Ethernet, Wi-Fi.
+
+State words match the YoLink app.
+"""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -13,8 +17,10 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.util import dt as dt_util
 
 from .coordinator import YoLinkHubCoordinator
 from .entity import YoLinkHubEntity
@@ -113,7 +119,9 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     coordinator: YoLinkHubCoordinator = entry.runtime_data
-    async_add_entities(HubSensor(coordinator, desc) for desc in DESCRIPTIONS)
+    async_add_entities(
+        [*(HubSensor(coordinator, desc) for desc in DESCRIPTIONS), BatterySinceSensor(coordinator)]
+    )
 
 
 class HubSensor(YoLinkHubEntity, SensorEntity):
@@ -142,3 +150,74 @@ class HubSensor(YoLinkHubEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any] | None:
         fn = self.entity_description.attrs_fn
         return fn(self.coordinator.data) if fn and self.coordinator.data else None
+
+
+class BatterySinceSensor(YoLinkHubEntity, RestoreEntity, SensorEntity):
+    """When the Battery sensor's current state began (Supply, Charging, ...).
+
+    Home Assistant shows a timestamp as "12 minutes ago", so this reads as how
+    long the battery has been in its current state. It restarts only when the
+    battery state changes: not when the hub drops offline and comes back in
+    the same state, and not across Home Assistant restarts. If the state
+    changed while nobody was looking (at first setup, while Home Assistant was
+    stopped, or while the hub couldn't be read), the time is when the new
+    state was first seen, and the attribute exact_start is false.
+    """
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(self, coordinator: YoLinkHubCoordinator) -> None:
+        super().__init__(coordinator, "battery_since")
+        self._for_state: str | None = None
+        self._since: datetime | None = None
+        self._exact = False
+        self._seen_live = False
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last is not None and last.attributes.get("battery_state"):
+            since = dt_util.parse_datetime(last.state) if last.state else None
+            if since is not None:
+                self._for_state = last.attributes["battery_state"]
+                self._since = since
+                self._exact = bool(last.attributes.get("exact_start"))
+        self._track(self.coordinator.data)
+
+    def _track(self, data) -> None:
+        current = data.battery_state if data is not None and data.has_state else None
+        if current is None:
+            self._seen_live = False  # a change during this gap has no exact time
+            return
+        if current != self._for_state:
+            # Exact only if we were watching the previous state up to now;
+            # otherwise (first setup, after a restart or an offline gap) it is
+            # the time the new state was first seen.
+            self._exact = self._seen_live
+            self._for_state = current
+            self._since = dt_util.utcnow()
+        self._seen_live = True
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self._track(self.coordinator.data)
+        super()._handle_coordinator_update()
+
+    @property
+    def available(self) -> bool:
+        data = self.coordinator.data
+        return (
+            super().available
+            and data is not None
+            and data.has_state
+            and data.battery_state is not None
+            and self._since is not None
+        )
+
+    @property
+    def native_value(self) -> datetime | None:
+        return self._since
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {"battery_state": self._for_state, "exact_start": self._exact}

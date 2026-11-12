@@ -38,10 +38,17 @@ class CE:
     def __class_getitem__(c, i): return c
     def __init__(s, coordinator): s.coordinator=coordinator
     available=True
+    def _handle_coordinator_update(s): pass
 import datetime as _dt
 TIMERS=[]; TASKS=[]
 mod('homeassistant.helpers.event', async_track_time_interval=lambda hass, cb, interval: TIMERS.append((cb, interval)) or (lambda: None))
-mod('homeassistant.util'); mod('homeassistant.util.dt', utcnow=lambda: _dt.datetime(2026,11,12,19,0,tzinfo=_dt.timezone.utc))
+NOW=[_dt.datetime(2026,11,12,19,0,tzinfo=_dt.timezone.utc)]
+mod('homeassistant.util'); mod('homeassistant.util.dt', utcnow=lambda: NOW[0], parse_datetime=_dt.datetime.fromisoformat)
+class RestoreEntity:
+    _last=None
+    async def async_added_to_hass(s): pass
+    async def async_get_last_state(s): return s._last
+mod('homeassistant.helpers.restore_state', RestoreEntity=RestoreEntity)
 mod('homeassistant.helpers.update_coordinator', DataUpdateCoordinator=DUC, CoordinatorEntity=CE)
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class ED:
@@ -131,4 +138,31 @@ async def main():
     assert reasons==[('ping recovered','offline_cloud_lan_ok'),('ping recovered, follow-up','offline_cloud_lan_ok'),('ping recovered, follow-up','online')]
     assert c.api.calls==6
     print('PING-TRIGGER TEST PASSED')
+    print('--- Battery state since ---')
+    import datetime as dtm
+    def at(m): NOW[0]=dtm.datetime(2026,11,12,19,m,tzinfo=dtm.timezone.utc)
+    async def poll(c, e, reply):
+        c.api.replies.append(reply); c.data=await c._async_update_data(); e._handle_coordinator_update()
+        return (e.native_value.strftime('%H:%M') if e.available else 'unavailable', e.extra_state_attributes)
+    TIMERS.clear(); at(0)
+    c=await run('Start', [fx('normal')])
+    e=sensorm.BatterySinceSensor(c); await e.async_added_to_hass()
+    print('   first seen standby :', (e.native_value.strftime('%H:%M'), e.extra_state_attributes))
+    assert e.extra_state_attributes=={'battery_state':'standby','exact_start':False}
+    at(5); r=await poll(c,e,fx('normal')); assert r[0]=='19:00'
+    at(10); r=await poll(c,e,fx('ac_unplugged')); print('   AC unplugged       :', r); assert r==('19:10',{'battery_state':'supply','exact_start':True})
+    at(20); r=await poll(c,e,fx('ethernet_unplugged')); print('   hub offline        :', r); assert r[0]=='unavailable'
+    at(25); r=await poll(c,e,fx('ac_unplugged')); print('   back, still supply :', r); assert r==('19:10',{'battery_state':'supply','exact_start':True})
+    at(40); r=await poll(c,e,fx('ac_restored')); print('   AC restored        :', r); assert r==('19:40',{'battery_state':'charging','exact_start':True})
+    # Home Assistant restarts: restored, same state -> keeps its start
+    at(50); c2=await run('After restart', [fx('ac_restored')])
+    e2=sensorm.BatterySinceSensor(c2); e2._last=types.SimpleNamespace(state='2026-11-12T19:40:00+00:00', attributes={'battery_state':'charging','exact_start':True})
+    await e2.async_added_to_hass(); print('   restored, same     :', (e2.native_value.strftime('%H:%M'), e2.extra_state_attributes))
+    assert e2.native_value.strftime('%H:%M')=='19:40' and e2.extra_state_attributes['exact_start'] is True
+    # restart where the state changed while Home Assistant was down -> not exact
+    c3=await run('After restart, changed', [fx('normal')])
+    e3=sensorm.BatterySinceSensor(c3); e3._last=e2._last
+    await e3.async_added_to_hass(); print('   restored, changed  :', (e3.native_value.strftime('%H:%M'), e3.extra_state_attributes))
+    assert e3.extra_state_attributes=={'battery_state':'standby','exact_start':False}
+    print('BATTERY-SINCE TEST PASSED')
 asyncio.run(main())
