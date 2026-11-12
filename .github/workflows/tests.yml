@@ -1,0 +1,26 @@
+# The integration's tests (tests/): parsing against real Pro Hub API
+# captures, and the coordinator and entities with Home Assistant stubbed
+# out. On every push and pull request.
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: pip install pytest
+      - name: Parsing tests
+        run: pytest -v tests/test_status.py
+      - name: Simulation of every outage combination
+        run: python3 tests/simulate_ha.py
