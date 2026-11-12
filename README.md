@@ -16,6 +16,7 @@ Everything appears on one **hub device** page. State names match the YoLink app'
 | YoLink cloud | Connected / Disconnected | Whether Home Assistant can reach the YoLink API |
 | DC | Connected / Disconnected | `other.power.dc` |
 | Battery | Supply / Charging / Standby | `other.power.batteryState` 1 / 2 / 3 |
+| Last cloud check *(diagnostic)* | When the YoLink cloud was last asked, with the reason as an attribute | |
 | Firmware *(diagnostic)* | e.g. 1316 | `version` |
 | Ethernet, Wi-Fi *(diagnostic)* | Connected / Not Connected, with IP, gateway and mask as attributes | `eth`, `wifi` |
 | Needs review *(diagnostic)* | Problem / OK, with a `reasons` list | Anything the integration doesn't recognize yet |
@@ -53,13 +54,14 @@ Anything new or unexpected turns on **Needs review** and lists the reason, so it
 
 1. In the YoLink app: **Settings → Account → Advanced Settings → User Access Credentials**. Tap **+** if none exist, then copy the **UAID** and **Secret Key**.
 2. Enter them in Home Assistant. If the account has more than one hub, pick one.
-3. Enter the hub's LAN IP address for the local check (suggested from what the hub reports; a DHCP reservation for the hub is recommended) and how often to check (30–300 seconds, default 60).
+3. Enter the hub's LAN IP address for the local check (suggested from what the hub reports; a DHCP reservation for the hub is recommended), how often to ping it (5–60 seconds, default 10), and how often to check the YoLink cloud (30–300 seconds, default 60).
 
 Both settings can be changed later under the integration's **Configure** button.
 
 ## Notes
 
 - Polls the YoLink cloud API, reusing the access token until it is about to expire, so one check costs one API request.
+- The ping runs on its own, faster timer. When the hub stops or starts answering, the cloud is checked at once instead of waiting for the next scheduled check.
 - Uses its own User Access Credentials, separate from the official integration's login.
 - "Update available" for hub firmware isn't possible yet: the API reports only the installed version.
 

@@ -37,7 +37,7 @@ def _connected(value: bool | None) -> str | None:
 class HubSensorDescription(SensorEntityDescription):
     """How to read one sensor from HubData."""
 
-    value_fn: Callable[[HubData], str | None]
+    value_fn: Callable[[HubData], Any]
     needs_state: bool = True  # unavailable unless the hub's state came back
     attrs_fn: Callable[[HubData], dict[str, Any]] | None = None
 
@@ -67,6 +67,14 @@ DESCRIPTIONS: tuple[HubSensorDescription, ...] = (
         ],
         value_fn=lambda d: d.battery_state,
         attrs_fn=lambda d: {"battery_state_code": d.battery_code},
+    ),
+    HubSensorDescription(
+        key="last_cloud_check",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda d: d.cloud_checked_at,
+        needs_state=False,
+        attrs_fn=lambda d: {"reason": d.cloud_check_reason, "api_code": d.api_code},
     ),
     HubSensorDescription(
         key="firmware",
@@ -127,7 +135,7 @@ class HubSensor(YoLinkHubEntity, SensorEntity):
         return self.entity_description.value_fn(data) is not None
 
     @property
-    def native_value(self) -> str | None:
+    def native_value(self) -> Any:
         return self.entity_description.value_fn(self.coordinator.data)
 
     @property

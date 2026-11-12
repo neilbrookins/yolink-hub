@@ -35,28 +35,55 @@ from .const import (
     CONF_HUB_TOKEN,
     CONF_HUB_TYPE,
     CONF_LOCAL_HOST,
+    CONF_PING_INTERVAL,
     CONF_SCAN_INTERVAL,
     CONF_SECRET_KEY,
     CONF_UAID,
+    DEFAULT_PING_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    MAX_PING_INTERVAL,
     MAX_SCAN_INTERVAL,
+    MIN_PING_INTERVAL,
     MIN_SCAN_INTERVAL,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 
+def _settings_schema(host: str, ping: int, cloud: int) -> vol.Schema:
+    """Local address, ping interval and cloud interval (setup and options)."""
+    return vol.Schema(
+        {
+            vol.Optional(CONF_LOCAL_HOST, description={"suggested_value": host}): TextSelector(),
+            vol.Required(CONF_PING_INTERVAL, default=ping): _interval_selector(
+                MIN_PING_INTERVAL, MAX_PING_INTERVAL, 5
+            ),
+            vol.Required(CONF_SCAN_INTERVAL, default=cloud): _interval_selector(
+                MIN_SCAN_INTERVAL, MAX_SCAN_INTERVAL, 10
+            ),
+        }
+    )
+
+
+def _settings(user_input: dict[str, Any]) -> dict[str, Any]:
+    return {
+        CONF_LOCAL_HOST: (user_input.get(CONF_LOCAL_HOST) or "").strip(),
+        CONF_PING_INTERVAL: int(user_input[CONF_PING_INTERVAL]),
+        CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
+    }
+
+
 def _is_hub(dev: dict[str, Any]) -> bool:
     return "hub" in str(dev.get("type", "")).lower()
 
 
-def _interval_selector() -> NumberSelector:
+def _interval_selector(low: int, high: int, step: int) -> NumberSelector:
     return NumberSelector(
         NumberSelectorConfig(
-            min=MIN_SCAN_INTERVAL,
-            max=MAX_SCAN_INTERVAL,
-            step=10,
+            min=low,
+            max=high,
+            step=step,
             unit_of_measurement="seconds",
             mode=NumberSelectorMode.BOX,
         )
@@ -149,10 +176,7 @@ class YoLinkHubConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_HUB_NAME: hub.get("name") or "YoLink Hub",
                     CONF_HUB_MODEL: hub.get("modelName"),
                 },
-                options={
-                    CONF_LOCAL_HOST: (user_input.get(CONF_LOCAL_HOST) or "").strip(),
-                    CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
-                },
+                options=_settings(user_input),
             )
 
         # Suggest the address the hub reports for itself.
@@ -172,15 +196,8 @@ class YoLinkHubConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="local",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_LOCAL_HOST, description={"suggested_value": suggested}
-                    ): TextSelector(),
-                    vol.Required(
-                        CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL
-                    ): _interval_selector(),
-                }
+            data_schema=_settings_schema(
+                suggested, DEFAULT_PING_INTERVAL, DEFAULT_SCAN_INTERVAL
             ),
             description_placeholders={"hub": self._hub.get("name", "")},
         )
@@ -196,25 +213,13 @@ class YoLinkHubOptionsFlow(OptionsFlow):
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
-            return self.async_create_entry(
-                data={
-                    CONF_LOCAL_HOST: (user_input.get(CONF_LOCAL_HOST) or "").strip(),
-                    CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
-                }
-            )
+            return self.async_create_entry(data=_settings(user_input))
         opts = self.config_entry.options
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_LOCAL_HOST,
-                        description={"suggested_value": opts.get(CONF_LOCAL_HOST, "")},
-                    ): TextSelector(),
-                    vol.Required(
-                        CONF_SCAN_INTERVAL,
-                        default=opts.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
-                    ): _interval_selector(),
-                }
+            data_schema=_settings_schema(
+                opts.get(CONF_LOCAL_HOST, ""),
+                opts.get(CONF_PING_INTERVAL, DEFAULT_PING_INTERVAL),
+                opts.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
             ),
         )

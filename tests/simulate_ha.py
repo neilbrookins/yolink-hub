@@ -19,6 +19,7 @@ mod('icmplib', SocketPermissionError=SocketPermissionError, async_ping=async_pin
 mod('homeassistant'); mod('homeassistant.helpers'); mod('homeassistant.components')
 class ConfigEntry:
     def __init__(s,data,options): s.data=data; s.options=options; s.entry_id='e1'
+    def async_on_unload(s, f): pass
 mod('homeassistant.config_entries', ConfigEntry=ConfigEntry)
 mod('homeassistant.core', HomeAssistant=object, callback=lambda f:f)
 class DR:
@@ -29,15 +30,21 @@ mod('homeassistant.helpers.device_registry', async_get=lambda h: DR(), DeviceInf
 class DUC:
     def __class_getitem__(c, i): return c
     def __init__(s, hass, logger, config_entry, name, update_interval): s.hass=hass; s.config_entry=config_entry; s.data=None
+    def async_set_updated_data(s, data): s.data=data; print('   (shown at once) status=', data.status)
+    async def async_refresh(s): s.data=await s._async_update_data()
 class CE:
     def __class_getitem__(c, i): return c
     def __init__(s, coordinator): s.coordinator=coordinator
     available=True
+import datetime as _dt
+TIMERS=[]
+mod('homeassistant.helpers.event', async_track_time_interval=lambda hass, cb, interval: TIMERS.append((cb, interval)) or (lambda: None))
+mod('homeassistant.util'); mod('homeassistant.util.dt', utcnow=lambda: _dt.datetime(2026,11,12,19,0,tzinfo=_dt.timezone.utc))
 mod('homeassistant.helpers.update_coordinator', DataUpdateCoordinator=DUC, CoordinatorEntity=CE)
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class ED:
     key:str; device_class:object=None; entity_category:object=None; options:object=None
-class SDC(enum.Enum): ENUM='enum'
+class SDC(enum.Enum): ENUM='enum'; TIMESTAMP='timestamp'
 class BDC(enum.Enum): CONNECTIVITY='connectivity'; PROBLEM='problem'
 mod('homeassistant.components.sensor', SensorDeviceClass=SDC, SensorEntity=object, SensorEntityDescription=ED)
 mod('homeassistant.components.binary_sensor', BinarySensorDeviceClass=BDC, BinarySensorEntity=object, BinarySensorEntityDescription=ED)
@@ -79,6 +86,7 @@ async def run(label, replies, ping=True, host='192.168.0.250'):
     PING['alive']=ping
     entry=ConfigEntry({'hub_id':'hub1','hub_type':'Hub','hub_token':'T','hub_name':'Pro Hub'},{'local_host':host,'scan_interval':60})
     c=coordm.YoLinkHubCoordinator(hass, entry, FakeApi(replies))
+    await c.async_start_pinging()
     c.data=await c._async_update_data()
     print(f'{label}: status={c.data.status}'); show(c); return c
 async def main():
@@ -95,4 +103,18 @@ async def main():
     bad=fx('normal'); bad['data']['other']['power']['batteryState']=4
     await run('Battery code 4', [bad])
     await run('No local address set', [fx('normal')], host='')
+    print('--- Ping fails between cloud checks: cloud is asked at once ---')
+    TIMERS.clear()
+    c=await run('Before', [fx('normal'), fx('ethernet_unplugged'), fx('normal')])
+    cb, interval = TIMERS[-1]
+    print('   ping timer every', interval)
+    PING['alive']=False; await cb(None)
+    print(f'After ping failed: status={c.data.status}, cloud check reason={c.data.cloud_check_reason}'); show(c)
+    assert c.data.status=='offline' and c.data.cloud_check_reason=='ping failed'
+    await cb(None)  # still failing: no extra cloud call
+    assert c.api.calls==2, c.api.calls
+    PING['alive']=True; await cb(None)
+    print(f'After ping recovered: status={c.data.status}, reason={c.data.cloud_check_reason}')
+    assert c.data.status=='online' and c.data.cloud_check_reason=='ping recovered' and c.api.calls==3
+    print('PING-TRIGGER TEST PASSED')
 asyncio.run(main())

@@ -1,9 +1,13 @@
-"""Polls the YoLink cloud and pings the hub on the LAN."""
+"""Pings the hub on the LAN often, and checks the YoLink cloud less often.
+
+When the ping result changes (the hub stops or starts answering), the cloud is
+checked right away, so the status settles within seconds without polling the
+cloud more often.
+"""
 
 from __future__ import annotations
 
-import asyncio
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 
 from icmplib import SocketPermissionError, async_ping
@@ -11,7 +15,9 @@ from icmplib import SocketPermissionError, async_ping
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.util import dt as dt_util
 
 from .api import YoLinkApi, YoLinkAuthError, YoLinkCloudError
 from .const import (
@@ -19,7 +25,9 @@ from .const import (
     CONF_HUB_TOKEN,
     CONF_HUB_TYPE,
     CONF_LOCAL_HOST,
+    CONF_PING_INTERVAL,
     CONF_SCAN_INTERVAL,
+    DEFAULT_PING_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     PING_COUNT,
@@ -31,7 +39,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class YoLinkHubCoordinator(DataUpdateCoordinator[HubData]):
-    """One poll = one Hub.getState call plus one local ping, run together."""
+    """Cloud checks on the update interval; pings on their own, faster timer."""
 
     config_entry: ConfigEntry
 
@@ -53,19 +61,63 @@ class YoLinkHubCoordinator(DataUpdateCoordinator[HubData]):
         self.local_host: str | None = (
             entry.options.get(CONF_LOCAL_HOST, entry.data.get(CONF_LOCAL_HOST)) or None
         )
+        self.ping_interval = int(
+            entry.options.get(CONF_PING_INTERVAL, DEFAULT_PING_INTERVAL)
+        )
         self._cloud_was_down = False
         self._privileged_ping: bool | None = None
+        self._local: bool | None = None  # latest ping result
+        self._pinging = False
+        self._reply: dict | None = None  # latest cloud reply (None = unreachable)
+        self._extra: list[str] = []
+        self._checked_at: datetime | None = None
+        self._check_reason = "startup"
+        self._next_reason = "startup"
+
+    async def async_start_pinging(self) -> None:
+        """First ping now, then on the ping interval until the entry unloads."""
+        if not self.local_host:
+            return
+        self._local = await self._ping()
+        self.config_entry.async_on_unload(
+            async_track_time_interval(
+                self.hass, self._ping_tick, timedelta(seconds=self.ping_interval)
+            )
+        )
+
+    async def _ping_tick(self, _now: datetime) -> None:
+        if self._pinging:  # the previous ping is still waiting for replies
+            return
+        self._pinging = True
+        try:
+            local = await self._ping()
+        finally:
+            self._pinging = False
+        if local == self._local:
+            return
+        self._local = local
+        _LOGGER.info(
+            "Hub %s %s on the LAN; checking the YoLink cloud now",
+            self.local_host,
+            "answering" if local else "not answering",
+        )
+        if self.data is not None:
+            self.async_set_updated_data(self._build())  # show the ping change at once
+        self._next_reason = "ping recovered" if local else "ping failed"
+        await self.async_refresh()
 
     async def _async_update_data(self) -> HubData:
-        if self.local_host:
-            (response, extra), local = await asyncio.gather(
-                self._fetch_state(), self._ping()
-            )
-        else:
-            response, extra = await self._fetch_state()
-            local = None
-        data = parse(response, local, extra)
+        self._check_reason, self._next_reason = self._next_reason, "scheduled"
+        self._reply, self._extra = await self._fetch_state()
+        self._checked_at = dt_util.utcnow()
+        data = self._build()
         self._update_device(data)
+        return data
+
+    def _build(self) -> HubData:
+        data = parse(self._reply, self._local if self.local_host else None, self._extra)
+        data.cloud_checked_at = self._checked_at
+        data.cloud_check_reason = self._check_reason
         return data
 
     async def _fetch_state(self) -> tuple[dict | None, list[str]]:

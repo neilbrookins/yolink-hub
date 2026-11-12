@@ -13,11 +13,16 @@ CONF_HUB_NAME = "hub_name"
 CONF_HUB_TYPE = "hub_type"
 CONF_HUB_MODEL = "hub_model"
 CONF_LOCAL_HOST = "local_host"
-CONF_SCAN_INTERVAL = "scan_interval"
+CONF_SCAN_INTERVAL = "scan_interval"  # YoLink cloud check interval
+CONF_PING_INTERVAL = "ping_interval"  # local ping interval
 
 DEFAULT_SCAN_INTERVAL = 60  # seconds
 MIN_SCAN_INTERVAL = 30
 MAX_SCAN_INTERVAL = 300
+
+DEFAULT_PING_INTERVAL = 10  # seconds
+MIN_PING_INTERVAL = 5
+MAX_PING_INTERVAL = 60
 
 PING_COUNT = 3
 PING_TIMEOUT = 2  # seconds per reply

@@ -104,6 +104,8 @@ class HubData:
     wifi_connected: bool | None = None
     wifi: dict[str, Any] = field(default_factory=dict)
     review_reasons: list[str] = field(default_factory=list)
+    cloud_checked_at: Any = None  # when the cloud was last asked (set by the coordinator)
+    cloud_check_reason: str | None = None  # scheduled / ping failed / ping recovered / startup
 
 
 def _flatten(value: Any, prefix: str = "") -> dict[str, Any]:

@@ -11,14 +11,17 @@
       },
       "hub": {
         "title": "Choose the hub",
-        "data": { "hub_id": "Hub" }
+        "data": {
+          "hub_id": "Hub"
+        }
       },
       "local": {
         "title": "{hub}: local check and polling",
-        "description": "Enter the hub's LAN IP address so Home Assistant can ping it directly. This tells a local hub outage apart from an internet or YoLink cloud outage. Leave it empty to skip the local check.",
+        "description": "Enter the hub's LAN IP address so Home Assistant can ping it directly. This tells a local hub outage apart from an internet or YoLink cloud outage, and when the ping result changes the YoLink cloud is checked right away. Leave it empty to skip the local check.",
         "data": {
           "local_host": "Hub IP address on your network",
-          "scan_interval": "Check every"
+          "ping_interval": "Ping the hub every",
+          "scan_interval": "Check the YoLink cloud every"
         }
       }
     },
@@ -37,17 +40,26 @@
         "title": "YoLink Hub options",
         "data": {
           "local_host": "Hub IP address on your network (empty = no local check)",
-          "scan_interval": "Check every"
+          "ping_interval": "Ping the hub every",
+          "scan_interval": "Check the YoLink cloud every"
         }
       }
     }
   },
   "entity": {
     "binary_sensor": {
-      "online": { "name": "Online" },
-      "local_network": { "name": "Local network" },
-      "yolink_cloud": { "name": "YoLink cloud" },
-      "needs_review": { "name": "Needs review" }
+      "online": {
+        "name": "Online"
+      },
+      "local_network": {
+        "name": "Local network"
+      },
+      "yolink_cloud": {
+        "name": "YoLink cloud"
+      },
+      "needs_review": {
+        "name": "Needs review"
+      }
     },
     "sensor": {
       "status": {
@@ -81,7 +93,9 @@
           "unrecognized": "Unrecognized code"
         }
       },
-      "firmware": { "name": "Firmware" },
+      "firmware": {
+        "name": "Firmware"
+      },
       "ethernet": {
         "name": "Ethernet",
         "state": {
@@ -95,6 +109,9 @@
           "connected": "Connected",
           "not_connected": "Not Connected"
         }
+      },
+      "last_cloud_check": {
+        "name": "Last cloud check"
       }
     }
   }
