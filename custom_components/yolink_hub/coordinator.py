@@ -32,6 +32,7 @@ from .const import (
     CONF_SCAN_INTERVAL,
     DEFAULT_PING_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
+    AUTH_FAILURES_BEFORE_REVIEW,
     DOMAIN,
     FOLLOW_UP_EVERY,
     FOLLOW_UP_WINDOW,
@@ -81,6 +82,7 @@ class YoLinkHubCoordinator(DataUpdateCoordinator[HubData]):
         self._check_reason = "startup"
         self._next_reason = "startup"
         self._follow_up_task: asyncio.Task | None = None
+        self._auth_failures = 0  # token refusals in a row
 
     async def async_start_pinging(self) -> None:
         """First ping now, then on the ping interval until the entry unloads."""
@@ -160,7 +162,19 @@ class YoLinkHubCoordinator(DataUpdateCoordinator[HubData]):
                     self.hub_type, self.hub_id, self._hub_token
                 )
         except YoLinkAuthError as err:
-            # The cloud answered, so it is reachable; flag this for review.
+            # YoLink sometimes refuses a token for a moment (seen once in
+            # testing, fine a minute later). Only after several checks in a
+            # row is it treated as rejected credentials and flagged.
+            self._auth_failures += 1
+            if self._auth_failures < AUTH_FAILURES_BEFORE_REVIEW:
+                _LOGGER.warning(
+                    "%s (%d in a row; flagged after %d)",
+                    err,
+                    self._auth_failures,
+                    AUTH_FAILURES_BEFORE_REVIEW,
+                )
+                self._log_cloud(False, err)
+                return None, []
             _LOGGER.error("%s", err)
             self._log_cloud(True)
             return {
@@ -171,6 +185,7 @@ class YoLinkHubCoordinator(DataUpdateCoordinator[HubData]):
         except YoLinkCloudError as err:
             self._log_cloud(False, err)
             return None, []
+        self._auth_failures = 0
         self._log_cloud(True)
         return reply, []
 

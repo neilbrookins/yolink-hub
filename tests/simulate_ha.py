@@ -105,7 +105,14 @@ async def main():
     await run('Ethernet unplugged (ping fails)', [fx('ethernet_unplugged')], ping=False)
     await run('Internet down, hub answers ping', [apim.YoLinkCloudError('timeout')], ping=True)
     await run('Everything down', [apim.YoLinkCloudError('timeout')], ping=False)
-    await run('Bad credentials', [apim.YoLinkAuthError('rejected')])
+    c=await run('Token refused once (passing glitch)', [apim.YoLinkAuthError('rejected')])
+    assert c.data.review_reasons==[] and c.data.status=='cloud_down_lan_ok'
+    c.api.replies.append(fx('normal')); c.data=await c._async_update_data()
+    assert c.data.status=='online' and c._auth_failures==0
+    c.api.replies += [apim.YoLinkAuthError('rejected')]*3
+    for _ in range(3): c.data=await c._async_update_data()
+    print(f'Token refused 3 checks in a row: status={c.data.status}'); show(c)
+    assert c.data.review_reasons and 'credentials_rejected' in c.data.review_reasons[0]
     c=await run('Unknown code then OK after token refresh', [{'code':'010104','desc':'Token is expired','data':{}}, fx('normal')])
     print('   hub token saved:', updates)
     await run('Unknown code persists', [{'code':'999999','desc':'Mystery','data':{}}]*2)
@@ -191,4 +198,16 @@ async def main():
     print('   after another client replaced the token: rejected once, fresh token, success; calls =', cloud.calls[-2:])
     assert cloud.calls[-2][1]=='t1' and cloud.calls[-1][1]=='t3'
     print('MULTI-HUB TEST PASSED')
+    print('--- Token endpoint answers without a token once ---')
+    class Glitchy(YoLinkCloud):
+        def __init__(s): super().__init__(); s.glitch=1
+        def post(s, url, **k):
+            if url.endswith('/token') and s.glitch:
+                s.glitch-=1; return Resp(200, {'code':'010000','msg':'Service busy','access_token':None})
+            return super().post(url, **k)
+    g=Glitchy(); api2=apim.YoLinkApi(g,'uaid','secret')
+    r=await api2.get_state('Hub','hubA','x'); assert r['code']=='000000' and g.issued==1
+    print('   retried after the empty reply and got a token: OK')
+    print(f"   what gets logged about the refusal: {apim._token_error_detail({'code':'010000','msg':'Service busy','access_token':None,'client_secret':'x'})}")
+    print('TOKEN-RETRY TEST PASSED')
 asyncio.run(main())

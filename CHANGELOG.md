@@ -3,6 +3,17 @@
 Each version's notes. A release on GitHub is made from its section here
 by running the Release workflow (Actions tab): see .github/workflows/release.yml.
 
+## 0.1.7
+
+### Fixed
+- **A momentary token refusal no longer sets off Needs review.** On Nov 17
+  YoLink answered one token request (HTTP 200) without a token, and the
+  integration reported the UAID / Secret Key as rejected; a minute later all
+  was normal. Now an empty token reply is retried once after 2 seconds, and
+  a refusal counts as rejected credentials only after 3 cloud checks in a
+  row. Until then it shows as the cloud being unreachable. The log now says
+  what YoLink sent instead of a token (never the credentials).
+
 ## 0.1.6
 
 ### Changed

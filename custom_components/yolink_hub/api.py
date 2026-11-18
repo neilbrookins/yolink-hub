@@ -15,6 +15,15 @@ _LOGGER = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=15)
 TOKEN_MARGIN = 300  # renew the token this many seconds before it expires
+TOKEN_RETRY_DELAY = 2  # seconds before asking again when no token came back
+
+
+def _token_error_detail(body: Any) -> str:
+    """What YoLink said instead of giving a token (never the credentials)."""
+    if not isinstance(body, dict):
+        return repr(body)[:200]
+    keep = {k: v for k, v in body.items() if "token" not in k.lower() and "secret" not in k.lower()}
+    return repr(keep)[:300] if keep else "empty reply"
 
 
 class YoLinkCloudError(Exception):
@@ -44,25 +53,35 @@ class YoLinkApi:
         async with self._lock:
             if self._token and time.monotonic() < self._token_expires - TOKEN_MARGIN:
                 return self._token
-            try:
-                async with self._session.post(
-                    TOKEN_URL,
-                    data={
-                        "grant_type": "client_credentials",
-                        "client_id": self._uaid,
-                        "client_secret": self._secret,
-                    },
-                    timeout=REQUEST_TIMEOUT,
-                ) as resp:
-                    status = resp.status
-                    body = await resp.json(content_type=None)
-            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as err:
-                raise YoLinkCloudError(f"Token request failed: {err}") from err
-            token = body.get("access_token") if isinstance(body, dict) else None
-            if not token:
-                if status < 500:
-                    raise YoLinkAuthError(f"Token request rejected (HTTP {status})")
-                raise YoLinkCloudError(f"Token request failed (HTTP {status})")
+            for attempt in (1, 2):
+                try:
+                    async with self._session.post(
+                        TOKEN_URL,
+                        data={
+                            "grant_type": "client_credentials",
+                            "client_id": self._uaid,
+                            "client_secret": self._secret,
+                        },
+                        timeout=REQUEST_TIMEOUT,
+                    ) as resp:
+                        status = resp.status
+                        body = await resp.json(content_type=None)
+                except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as err:
+                    raise YoLinkCloudError(f"Token request failed: {err}") from err
+                token = body.get("access_token") if isinstance(body, dict) else None
+                if token:
+                    break
+                if status >= 500:
+                    raise YoLinkCloudError(f"Token request failed (HTTP {status})")
+                # No token: often a passing glitch, so ask once more first.
+                detail = _token_error_detail(body)
+                _LOGGER.debug("Token request %d returned no token: %s", attempt, detail)
+                if attempt == 1:
+                    await asyncio.sleep(TOKEN_RETRY_DELAY)
+                    continue
+                raise YoLinkAuthError(
+                    f"Token request rejected (HTTP {status}): {detail}"
+                )
             self._token = token
             self._token_expires = time.monotonic() + float(body.get("expires_in", 7200))
             _LOGGER.debug("Got a new YoLink access token")

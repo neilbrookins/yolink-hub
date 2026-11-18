@@ -34,3 +34,7 @@ FOLLOW_UP_EVERY = 5  # seconds between further checks while they disagree
 FOLLOW_UP_WINDOW = 60  # give up after this many seconds; scheduled checks go on
 
 MANUFACTURER = "YoSmart"
+
+# A token refusal is flagged as rejected credentials only after this many
+# cloud checks in a row (YoLink sometimes refuses one for a moment).
+AUTH_FAILURES_BEFORE_REVIEW = 3
